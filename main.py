@@ -123,7 +123,7 @@ def main():
         'n_horizon': 20,
         't_step': Ts,
         'n_robust': 1,
-        'store_full_solution': True,
+        'store_full_solution': False,
     }
     mpc.set_param(**setup_mpc)
 
@@ -153,9 +153,6 @@ def main():
     T_g = np.array([0.2]),
     T_dr = np.array([0.25])
     )
-    
-
-
 
     simulator = do_mpc.simulator.Simulator(model)
     simulator.set_param(t_step=Ts)
@@ -185,14 +182,17 @@ def main():
     simulator.x0 = x0
     mpc.x0 = x0
 
-
-    simulator.setup()
-
-    mpc.setup()
-
     
+    simulator.setup()
+    
+    
+    
+    
+    mpc.setup()
     
     mpc.set_initial_guess() # used to set the initial guess of the optimisation problem
+
+    
 
     mpc_graphics = do_mpc.graphics.Graphics(mpc.data)
     sim_graphics = do_mpc.graphics.Graphics(simulator.data)
