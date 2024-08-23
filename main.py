@@ -18,12 +18,12 @@ def main():
     ##### Defining the Model #####
 
     #Model params
-    M = 8
-    D = 0.8 
-    R = 0.05 
-    T_t = 0.5 
-    T_g = 0.2 
-    T_dr = 0.25 # demand response time (s)
+    # M = 8
+    # D = 0.8 
+    # R = 0.05 
+    # T_t = 0.5 
+    # T_g = 0.2 
+    # T_dr = 0.25 # demand response time (s)
 
     # limiting the amount of steam power that can be outputted
 
@@ -120,10 +120,10 @@ def main():
     mpc = do_mpc.controller.MPC(model)
 
     setup_mpc = {
-        'n_horizon': 20,
+        'n_horizon': 5,
         't_step': Ts,
         'n_robust': 1,
-        'store_full_solution': False,
+        'store_full_solution': True,
     }
     mpc.set_param(**setup_mpc)
 
@@ -140,8 +140,27 @@ def main():
         dpdrref = 1e-2
     )#rmatrix
 
-    # setting the constraints
-    # mpc.bounds['lower', '_x', 'dw']
+    ## setting the state constraints ##
+    mpc.bounds['lower', '_x', 'dw'] = 48
+    mpc.bounds['upper', '_x', 'dw'] = 52
+    
+    # mpc.bounds['lower', '_x', 'dpm']
+    # mpc.bounds['upper', '_x', 'dpm']
+
+    # mpc.bounds['lower', '_x', 'dpv']
+    # mpc.bounds['upper', '_x', 'dpv']
+
+    # mpc.bounds['lower', '_x', 'dpdr']
+    # mpc.bounds['upper', '_x', 'dpdr']
+
+    ## setting input constraints ##
+
+    mpc.bounds['lower', '_u', 'dpmref'] = -0.5
+    mpc.bounds['upper', '_u', 'dpmref'] = 0.5
+
+    mpc.bounds['lower', '_u', 'dpdrref'] = 0
+    # mpc.bounds['upper', '_u', 'dpdrref']
+
 
 
     # implementing uncertainties on the parameters, if you don't want to include the uncertainties, then just put the numbers here
@@ -153,6 +172,10 @@ def main():
     T_g = np.array([0.2]),
     T_dr = np.array([0.25])
     )
+    
+    
+    mpc.setup()
+
 
     simulator = do_mpc.simulator.Simulator(model)
     simulator.set_param(t_step=Ts)
@@ -184,11 +207,7 @@ def main():
 
     
     simulator.setup()
-    
-    
-    
-    
-    mpc.setup()
+
     
     mpc.set_initial_guess() # used to set the initial guess of the optimisation problem
 
