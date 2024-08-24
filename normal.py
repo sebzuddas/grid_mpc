@@ -123,18 +123,20 @@ def main():
     # check for stability:
     spectral_radius(A, B, KN)
    
-    
-    
 
     x0 = np.array([[1], 
                    [1], 
                    [0], 
                    [1]])# system starting states, dw(t), dpm(t), dpv(t), dpdr(t)
     
-    Uopt = S@x0
+    
 
     u0 = np.array([[0], 
                    [0]]) # system inputs, dpm,ref(t) dpdr,ref(t)
+    
+
+    Uopt = S@x0#get the first set of optimal control inputs
+
     
     timesteps = 50
     k = 0
@@ -156,7 +158,7 @@ def main():
 
     
 
-def spectral_radius(A: np.array, B:np.array, KN:np.array):
+def spectral_radius(A:np.array, B:np.array, KN:np.array):
      ### Calculating the stability of A+B@KN ###
 
     Z = A+B@KN
@@ -165,7 +167,7 @@ def spectral_radius(A: np.array, B:np.array, KN:np.array):
     
     print('Stabilising', sr) if sr < 1 else print('Not Stabilising', sr)
 
-def plot_output(xs: list, us: list):
+def plot_output(xs:list, us:list):
     # # Convert lists to numpy arrays for easier manipulation
     # expect xs, us to be a list of numpy arrays
     xs = np.array(xs).squeeze()
@@ -199,7 +201,7 @@ def check_symmetric(a:np.array):
     
     return ((a == a.T).all())# check for symmetry
 
-def predict_mats(A, B, N):
+def predict_mats(A:np.array, B:np.array, N:int):
     """
     Returns the MPC prediction matrices F and G for the system x^+ = A*x + B*u.
     
@@ -236,6 +238,106 @@ def predict_mats(A, B, N):
             G[n * i:n * (i + 1), m * j:m * (j + 1)] = np.linalg.matrix_power(A, i - j) @ B
 
     return F, G
+
+def constraint_mats(F:np.array, G:np.array, Pu:np.array, qu:np.array, Px:np.array, qx:np.array, Pxf:np.array, qxf:np.array):
+
+    """    
+    function [Pc, qc, Sc] = constraint_mats(F,G,Pu,qu,Px,qx,Pxf,qxf)
+    %
+    % CONSTRAINTS_MATS.M returns the MPC constraints matrices for a system that
+    % is subject to constraints
+    %
+    %    Pu*u(k+j|k) <= qu
+    %    Px*x(k+j|k) <= qx
+    %    Pxf*x(k+N|k) <= qxf
+    %
+    % That is, the matrices Pc, qc and Sc from
+    %
+    %   Pc*U(k) <= qc + Sc*x(k)
+    %
+    % USAGE:
+    %
+    %   [Pc,qc,Sc] = constraint_mats(F,G,Pu,qu,Px,qx,Pxf,qxf)
+    %
+    % where F, G are the prediction matrices obtained from PREDICT_MATS.M
+    %
+    % NOTES ON USAGE
+    %
+    %   1. If there are no state constraints, specify Px, qx, Pxf and qxf as
+    %   empty arrays:
+    %
+    %   [Pc,qc,Sc] = constraint_mats(F,G,Pu,qu,[],[],[],[])
+    %
+    %   2. If Pxf and qxf are not specified, Px and qx will be extended to the
+    %   terminal state. That is,
+    %
+    %   [Pc,qc,Sc] = constraint_mats(F,G,Pu,qu,Px,qx,[],[])
+    %
+    %   implements
+    %
+    %   [Pc,qc,Sc] = constraint_mats(F,G,Pu,qu,Px,qx,Px,qx)
+    %
+    % P. Trodden, 2017, 2023.
+
+    % input dimension
+    m = size(Pu,2);
+
+    % state dimension
+    n = size(F,2);
+
+    % horizon length
+    N = size(F,1)/n;
+
+    % number of input constraints
+    ncu = numel(qu);
+
+    % number of state constraints
+    ncx = numel(qx);
+
+    % number of terminal constraints
+    ncf = numel(qxf);
+
+    % if state constraints exist, but terminal ones do not, then extend the
+    % former to the latter
+    if ncf == 0 && ncx > 0
+        Pxf = Px;
+        qxf = qx;
+        ncf = ncx;
+    end
+
+    %% Input constraints
+
+    % Build "tilde" (stacked) matrices for constraints over horizon
+    Pu_tilde = kron(eye(N),Pu);
+    qu_tilde = kron(ones(N,1),qu);
+    Scu = zeros(ncu*N,n);
+
+    %% State constraints
+
+    % Build "tilde" (stacked) matrices for constraints over horizon
+    Px0_tilde = [Px; zeros(ncx*(N-1) + ncf,n)];
+    if ncx > 0
+        Px_tilde = [kron(eye(N-1),Px) zeros(ncx*(N-1),n)];
+    else
+        Px_tilde = zeros(ncx,n*N);
+    end
+    Pxf_tilde = [zeros(ncf,n*(N-1)) Pxf];
+    Px_tilde = [zeros(ncx,n*N); Px_tilde; Pxf_tilde];
+    qx_tilde = [kron(ones(N,1),qx); qxf];
+
+    %% Final stack
+    if isempty(Px_tilde)
+        Pc = Pu_tilde;
+        qc = qu_tilde;
+        Sc = Scu;
+    else
+        % eliminate x for final form
+        Pc = [Pu_tilde; Px_tilde*G];
+        qc = [qu_tilde; qx_tilde];
+        Sc = [Scu; -Px0_tilde - Px_tilde*F];
+    end
+    """
+
 
 def cost_mats(F, G, Q, R, P):
     from scipy.linalg import block_diag
@@ -286,8 +388,5 @@ def cost_mats(F, G, Q, R, P):
 
     return H, L, M
 
-
 if __name__ == '__main__':
     main()
-
-

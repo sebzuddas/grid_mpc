@@ -1,5 +1,11 @@
 # Grid MPC
 
+The challenge is to design an MPC-based controller for maintaining the stability of an electricity grid that uses renewables for generation. 
+
+The system block diagram is given as the following:
+
+![System block diagram](docs/system_transfer_fcns.png)
+
 The given state-space prediction model is:
 
 ```math
@@ -24,7 +30,7 @@ The given state-space prediction model is:
 \Delta p^v(t)\\
 \Delta p^{dr}(t)
 \end{pmatrix}
-
+\\
 +
 
 \begin{pmatrix}
@@ -62,6 +68,12 @@ The controller itself can be validated as _stabilising_ through checking the spe
 
 ## Constrained
 
+
+
 ## Disturbance Rejection
 
+
+
 ## Reference Tracking
+
+
