@@ -3,6 +3,7 @@
 The given state-space prediction model is:
 
 $$
+
 \frac{d}{dt}
 \begin{pmatrix}
 \Delta \omega(t)\\
@@ -46,7 +47,6 @@ $$
 0\\
 \end{pmatrix}
 \Delta p^{load}(t)
-
 
 $$
 
