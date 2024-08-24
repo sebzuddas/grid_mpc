@@ -2,7 +2,7 @@
 
 The given state-space prediction model is:
 
-$$
+```math
 
 \frac{d}{dt}
 \begin{pmatrix}
@@ -48,7 +48,7 @@ $$
 \end{pmatrix}
 \Delta p^{load}(t)
 
-$$
+```
 
 
 ## Unconstrained
