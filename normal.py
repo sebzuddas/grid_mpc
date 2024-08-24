@@ -77,10 +77,6 @@ def main():
     sysc = ct.matlab.ss(Ac, Bc, Cc, Dc)
     sysd = ct.matlab.c2d(sysc, Ts)
     A, B, C, D = ct.matlab.ssdata(sysd)
-    # print(K[0])
-    # print(K[1])
-    # print(K[2])
-    # print(K[3])
     # print(A)
     # print(B)
     # print(C)
@@ -137,7 +133,7 @@ def main():
 
     Uopt = S@x0#get the first set of optimal control inputs
 
-    
+
     timesteps = 50
     k = 0
     x = x0
