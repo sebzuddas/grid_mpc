@@ -2,7 +2,9 @@
 
 import numpy as np
 import control as ct
+import control.matlab
 import matplotlib.pyplot as plt
+import math
 
 
 def main():
@@ -14,8 +16,6 @@ def main():
 
     #### Defining the Model #####
 
-
-
     # Model params
     M = 8
     D = 0.8 
@@ -25,40 +25,70 @@ def main():
     T_dr = 0.25 # demand response time (s)
 
 
-    A = np.array(
+    Ac = np.array(
         [[-D/M, 1/M, 0, 1/M],
         [0, -1/T_t, 1/T_t, 0], 
         [-1/(R*T_g), 0, -1/T_g, 0], 
         [0, 0, 0, -1/T_dr]]) #System Matrix
 
-    B = np.array(
+    Bc = np.array(
         [[0, 0],
         [0, 0],
         [1/T_g, 0],
         [0, 1/T_dr]]) # Input Matrix
 
-    E = np.array(
+    Ec = np.array(
         [[-1/M],
         [0],
         [0],
         [0]]) # Disturbances
     
-    C = np.array([[50], [0], [0], [0]]) # Output matrix
+    Cc = np.array([[50], [0], [0], [0]]) # Output matrix
+    Cc = Cc.T
+    # print(C)
+    # exit()
+
+    # D = np.zeros(p, n)
 
 
     # Weighting Matrices
     #TODO: Check
     # Q = C @ C.T # C'*C - weights on the states
     # R = np.transpose(B) @ B # B'*B
-
-    # print(B.shape[1])
-    m = B.shape[1]
     
 
 
+    # print(B.shape[1])
+    # print(Ac.shape, Bc.shape, Cc.shape)
+    # print(Ac)
+    # print(Bc)
+    # print(Cc)
+    
+    
+    n = Ac.shape[0] # number of states nxn
+    m = Bc.shape[1] # number of inputs nxp
+    p = Cc.shape[0] # 
+    
+    Dc = np.zeros((p, m))
+    # print(Dc)
+    
+
+    #obtains the discrete time prediction model
+    sysc = ct.matlab.ss(Ac, Bc, Cc, Dc)
+    sysd = ct.matlab.c2d(sysc, Ts)
+    A, B, C, D = ct.matlab.ssdata(sysd)
+    # print(K[0])
+    # print(K[1])
+    # print(K[2])
+    # print(K[3])
+    # print(A)
+    # print(B)
+    # print(C)
+
+    # Weighting matrices
     # in this case, it's better to have the weighting matrices as eye() since the other values result in sq matrices but with zero weighting. 
-    Q = np.eye(4)
-    R = np.eye(2)
+    Q = np.eye(n) # squared state
+    R = np.eye(m) # squared number of inputs
     # print(Q)
     # print(R)
     
@@ -72,7 +102,7 @@ def main():
     Q_dlyap = (K_2.T @ R @ K_2) + Q
     
     # print(Q_dlyap)
-    # print((Q_dlyap == Q_dlyap.T).all())# check for symmetry
+
 
     P = ct.dlyap(A_dlyap, Q_dlyap)
     # print(P)
@@ -85,12 +115,16 @@ def main():
 
     S = np.linalg.solve(H, -L)
     # S becomes an m*N matrix (ie it is the set of optimal control inputs along the horizon, calculated in a receding manner)
-    # print(S)
+    print(S)
+    
     
     KN = S[0:m, :]
-    # print(KN)
     
-
+    # check for stability:
+    spectral_radius(A, B, KN)
+   
+    
+    
 
     x0 = np.array([[1], 
                    [1], 
@@ -112,17 +146,28 @@ def main():
     while k <= timesteps:
 
         Uopt = KN@x# calculate the optimal control sequence
-        uopt = Uopt[0:m, :] # extract the first m from the sequence
+        uopt = Uopt[0:n, :] # extract the first m from the sequence
         x = A @ x + B @ uopt
-
-        k+=1
-
+        k += 1
         xs.append(x)
         us.append(uopt)
 
+    plot_output(xs, us)
 
+    
 
-    # Convert lists to numpy arrays for easier manipulation
+def spectral_radius(A: np.array, B:np.array, KN:np.array):
+     ### Calculating the stability of A+B@KN ###
+
+    Z = A+B@KN
+    eigenvals = np.linalg.eigvals(Z)
+    sr = np.max(np.abs(eigenvals))
+    
+    print('Stabilising', sr) if sr < 1 else print('Not Stabilising', sr)
+
+def plot_output(xs: list, us: list):
+    # # Convert lists to numpy arrays for easier manipulation
+    # expect xs, us to be a list of numpy arrays
     xs = np.array(xs).squeeze()
     us = np.array(us).squeeze()
 
@@ -150,16 +195,9 @@ def main():
     plt.tight_layout()
     plt.show()
 
-
-
-
-
-
-
-
-
-def check_symmetric(a, tol=1e-8):
-    return np.all(np.abs(a-a.T) < tol)
+def check_symmetric(a:np.array):
+    
+    return ((a == a.T).all())# check for symmetry
 
 def predict_mats(A, B, N):
     """
