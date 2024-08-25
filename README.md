@@ -54,6 +54,19 @@ The given state-space prediction model is:
 \end{pmatrix}
 \Delta p^{load}(t)
 
+\\
+
+\Delta f(t) = 
+\begin{pmatrix}
+50 & 0 & 0 & 0 
+\end{pmatrix}
+\begin{pmatrix}
+\Delta \omega(t)\\
+\Delta p^m(t)\\
+\Delta p^v(t)\\
+\Delta p^{dr}(t)
+\end{pmatrix}
+
 ```
 
 
