@@ -76,7 +76,7 @@ The given state-space prediction model is:
 
 First attempt at the unconstrained controller
 
-![unconstrained version 1](/docs/Figure_1_attempt_1_unconstrained.png)
+![unconstrained version 1](/docs/Figure_1_unconstrained.png)
 
 Here we can see the unconstrained controller successfully controlling the system. 
 The controller itself can be validated as _stabilising_ through checking the spectral radius, which returns $SR = 0.8095604134222927\le 1$ hence the controller is stabilising. 
