@@ -54,7 +54,9 @@ The given state-space prediction model is:
 \end{pmatrix}
 \Delta p^{load}(t)
 
-\\
+```
+
+```math
 
 \Delta f(t) = 
 \begin{pmatrix}
