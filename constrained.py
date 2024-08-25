@@ -4,6 +4,8 @@ import numpy as np
 import control as ct
 import control.matlab
 import matplotlib.pyplot as plt
+from scipy.linalg import kron
+
 import math
 
 
@@ -12,7 +14,7 @@ def main():
 
     Ts = 0.1 # sampling time
 
-    N = 8 # prediction horizon
+
 
     #### Defining the Model #####
 
@@ -24,6 +26,8 @@ def main():
     T_g = 0.2 
     T_dr = 0.25 # demand response time (s)
 
+
+    #### Continuous Time System Models ####
 
     Ac = np.array(
         [[-D/M, 1/M, 0, 1/M],
@@ -56,6 +60,7 @@ def main():
     # Q = C @ C.T # C'*C - weights on the states
     # R = np.transpose(B) @ B # B'*B
     
+    
 
 
     # print(B.shape[1])
@@ -69,22 +74,40 @@ def main():
     m = Bc.shape[1] # number of inputs nxp
     p = Cc.shape[0] # 
     
-    Dc = np.zeros((p, m))
+    Dc = np.zeros((p, m+1))
     # print(Dc)
+
+    BcEc = np.concatenate((Bc, Ec), axis=1)
+    print(BcEc)
     
 
+    ##### Discrete-time model generation #####
+
     #obtains the discrete time prediction model
-    sysc = ct.matlab.ss(Ac, Bc, Cc, Dc)
+    sysc = ct.matlab.ss(Ac, BcEc, Cc, Dc)
     sysd = ct.matlab.c2d(sysc, Ts)
-    A, B, C, D = ct.matlab.ssdata(sysd)
+    A, BE, C, D = ct.matlab.ssdata(sysd)
+    
+    # Separate inputs B and disturbances E
+    # print(BE)
+    B = BE[:, 0:m]
+    E = BE[:, m:]
+
     # print(A)
     # print(B)
     # print(C)
+    # print(E)
+    
 
-    # Weighting matrices
+    ### Weighting matrices ###
+    # these are the tuning parameters
+    
     # in this case, it's better to have the weighting matrices as eye() since the other values result in sq matrices but with zero weighting. 
     Q = np.eye(n) # squared state
     R = np.eye(m) # squared number of inputs
+    
+    N = 8 # prediction horizon
+    
     # print(Q)
     # print(R)
     
@@ -111,20 +134,25 @@ def main():
 
     S = np.linalg.solve(H, -L)
     # S becomes an m*N matrix (ie it is the set of optimal control inputs along the horizon, calculated in a receding manner)
-    print(S)
-    
+    # print(S)
     
     KN = S[0:m, :]
     
     # check for stability:
     spectral_radius(A, B, KN)
+
+
+
+
+    ###### Constraints #########
+
+    xmax = [[rxy_max], [rxy_max], [500], [20], [20], [15]]
    
 
     x0 = np.array([[1], 
                    [1], 
                    [0], 
                    [1]])# system starting states, dw(t), dpm(t), dpv(t), dpdr(t)
-    
     
 
     u0 = np.array([[0], 
@@ -173,21 +201,25 @@ def plot_output(xs:list, us:list):
     plt.figure(figsize=(12, 6))
 
     # Plotting states
+    state_label = ['$\Delta \omega (t)$', '$\Delta p^m (t)$', '$\Delta p^v (t)$', '$\Delta p^{dr} (t)$']
     plt.subplot(2, 1, 1)
     for i in range(xs.shape[1]):
-        plt.plot(xs[:, i], label=f'State {i+1}')
+        plt.plot(xs[:, i], label=state_label[i])
     plt.title('State Trajectories')
     plt.xlabel('Time Step')
     plt.ylabel('State Values')
+    plt.grid()
     plt.legend()
 
     # Plotting control inputs
+    control_label = ['$\Delta p^{m, ref} (t)$', '$\Delta p^{dr, ref} (t)$']
     plt.subplot(2, 1, 2)
     for i in range(us.shape[1]):
-        plt.plot(us[:, i], label=f'Control {i+1}')
+        plt.plot(us[:, i], label=control_label[i])
     plt.title('Control Inputs')
     plt.xlabel('Time Step')
     plt.ylabel('Control Values')
+    plt.grid()
     plt.legend()
 
     plt.tight_layout()
@@ -235,106 +267,82 @@ def predict_mats(A:np.array, B:np.array, N:int):
 
     return F, G
 
-def constraint_mats(F:np.array, G:np.array, Pu:np.array, qu:np.array, Px:np.array, qx:np.array, Pxf:np.array, qxf:np.array):
+def constraint_mats(F:np.array, G:np.array, Pu:np.array, qu:np.array, Px=None, qx=None, Pxf=None, qxf=None):
+    """
+    Returns the MPC constraints matrices for a system subject to constraints.
 
-    """    
-    function [Pc, qc, Sc] = constraint_mats(F,G,Pu,qu,Px,qx,Pxf,qxf)
-    %
-    % CONSTRAINTS_MATS.M returns the MPC constraints matrices for a system that
-    % is subject to constraints
-    %
-    %    Pu*u(k+j|k) <= qu
-    %    Px*x(k+j|k) <= qx
-    %    Pxf*x(k+N|k) <= qxf
-    %
-    % That is, the matrices Pc, qc and Sc from
-    %
-    %   Pc*U(k) <= qc + Sc*x(k)
-    %
-    % USAGE:
-    %
-    %   [Pc,qc,Sc] = constraint_mats(F,G,Pu,qu,Px,qx,Pxf,qxf)
-    %
-    % where F, G are the prediction matrices obtained from PREDICT_MATS.M
-    %
-    % NOTES ON USAGE
-    %
-    %   1. If there are no state constraints, specify Px, qx, Pxf and qxf as
-    %   empty arrays:
-    %
-    %   [Pc,qc,Sc] = constraint_mats(F,G,Pu,qu,[],[],[],[])
-    %
-    %   2. If Pxf and qxf are not specified, Px and qx will be extended to the
-    %   terminal state. That is,
-    %
-    %   [Pc,qc,Sc] = constraint_mats(F,G,Pu,qu,Px,qx,[],[])
-    %
-    %   implements
-    %
-    %   [Pc,qc,Sc] = constraint_mats(F,G,Pu,qu,Px,qx,Px,qx)
-    %
-    % P. Trodden, 2017, 2023.
+    The function computes the matrices Pc, qc, and Sc from:
+    Pc * U(k) <= qc + Sc * x(k)
 
-    % input dimension
-    m = size(Pu,2);
+    Parameters:
+        F, G : Prediction matrices
+        Pu, qu : Input constraints
+        Px, qx : State constraints (can be None if not applicable)
+        Pxf, qxf : Terminal constraints (can be None if not applicable)
 
-    % state dimension
-    n = size(F,2);
-
-    % horizon length
-    N = size(F,1)/n;
-
-    % number of input constraints
-    ncu = numel(qu);
-
-    % number of state constraints
-    ncx = numel(qx);
-
-    % number of terminal constraints
-    ncf = numel(qxf);
-
-    % if state constraints exist, but terminal ones do not, then extend the
-    % former to the latter
-    if ncf == 0 && ncx > 0
-        Pxf = Px;
-        qxf = qx;
-        ncf = ncx;
-    end
-
-    %% Input constraints
-
-    % Build "tilde" (stacked) matrices for constraints over horizon
-    Pu_tilde = kron(eye(N),Pu);
-    qu_tilde = kron(ones(N,1),qu);
-    Scu = zeros(ncu*N,n);
-
-    %% State constraints
-
-    % Build "tilde" (stacked) matrices for constraints over horizon
-    Px0_tilde = [Px; zeros(ncx*(N-1) + ncf,n)];
-    if ncx > 0
-        Px_tilde = [kron(eye(N-1),Px) zeros(ncx*(N-1),n)];
-    else
-        Px_tilde = zeros(ncx,n*N);
-    end
-    Pxf_tilde = [zeros(ncf,n*(N-1)) Pxf];
-    Px_tilde = [zeros(ncx,n*N); Px_tilde; Pxf_tilde];
-    qx_tilde = [kron(ones(N,1),qx); qxf];
-
-    %% Final stack
-    if isempty(Px_tilde)
-        Pc = Pu_tilde;
-        qc = qu_tilde;
-        Sc = Scu;
-    else
-        % eliminate x for final form
-        Pc = [Pu_tilde; Px_tilde*G];
-        qc = [qu_tilde; qx_tilde];
-        Sc = [Scu; -Px0_tilde - Px_tilde*F];
-    end
+    Returns:
+        Pc, qc, Sc : Matrices for constraints
     """
 
+    # Input dimension
+    m = Pu.shape[1]
 
+    # State dimension
+    n = F.shape[1]
+
+    # Horizon length
+    N = F.shape[0] // n
+
+    # Number of input constraints
+    ncu = qu.size
+
+    # Number of state constraints
+    ncx = qx.size if qx is not None else 0
+
+    # Number of terminal constraints
+    ncf = qxf.size if qxf is not None else 0
+
+    # If state constraints exist, but terminal ones do not, then extend the
+    # former to the latter
+    if ncf == 0 and ncx > 0:
+        Pxf = Px
+        qxf = qx
+        ncf = ncx
+
+    ## Input constraints
+
+    # Build "tilde" (stacked) matrices for constraints over horizon
+    Pu_tilde = kron(np.eye(N), Pu)
+    qu_tilde = np.kron(np.ones((N, 1)), qu)
+    Scu = np.zeros((ncu * N, n))
+
+    ## State constraints
+
+    # Build "tilde" (stacked) matrices for constraints over horizon
+    Px0_tilde = np.vstack([Px, np.zeros((ncx * (N - 1) + ncf, n))]) if ncx > 0 else np.zeros((ncf, n))
+    
+    if ncx > 0:
+        Px_tilde = np.hstack([kron(np.eye(N - 1), Px), np.zeros((ncx * (N - 1), n))])
+    else:
+        Px_tilde = np.zeros((0, n * N))
+
+    Pxf_tilde = np.hstack([np.zeros((ncf, n * (N - 1))), Pxf])
+    Px_tilde = np.vstack([np.zeros((ncx, n * N)), Px_tilde, Pxf_tilde])
+    qx_tilde = np.vstack([kron(np.ones((N, 1)), qx), qxf]) if ncx > 0 else qxf
+
+    ## Final stack
+    if Px_tilde.size == 0:
+        Pc = Pu_tilde
+        qc = qu_tilde
+        Sc = Scu
+    else:
+        # Eliminate x for final form
+        Pc = np.vstack([Pu_tilde, Px_tilde @ G])
+        qc = np.vstack([qu_tilde, qx_tilde])
+        Sc = np.vstack([Scu, -Px0_tilde - Px_tilde @ F])
+
+    return Pc, qc, Sc
+    
 def cost_mats(F, G, Q, R, P):
     from scipy.linalg import block_diag
     """
@@ -383,6 +391,28 @@ def cost_mats(F, G, Q, R, P):
     H = (H + H.T) / 2
 
     return H, L, M
+
+def check_ctrb_obsv(A, B, C=None):
+    """Function to check controllability and observability for a given ss model"""
+
+    n = A.shape[0]
+
+    # controllability matrix
+    Ct = ct.ctrb(A, B)
+    rank_Ct = np.linalg.matrix_rank(Ct)
+    controllable = (rank_Ct == n)
+    
+    # observability matrix
+    if C is None:
+        C = B
+
+    Ob = ct.obsv(A, C)
+    rank_Ob = np.linalg.matrix_rank(Ob)
+    observable = (rank_Ob == n)
+
+
+    return controllable, observable
+
 
 if __name__ == '__main__':
     main()
