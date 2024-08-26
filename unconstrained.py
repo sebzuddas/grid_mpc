@@ -14,7 +14,7 @@ def main():
 
     Ts = 0.1 # sampling time
 
-    N = 8 # prediction horizon
+
 
     #### Defining the Model #####
 
@@ -60,6 +60,7 @@ def main():
     # Q = C @ C.T # C'*C - weights on the states
     # R = np.transpose(B) @ B # B'*B
     
+    
 
 
     # print(B.shape[1])
@@ -99,10 +100,14 @@ def main():
     
 
     ### Weighting matrices ###
+    # these are the tuning parameters
     
     # in this case, it's better to have the weighting matrices as eye() since the other values result in sq matrices but with zero weighting. 
     Q = np.eye(n) # squared state
     R = np.eye(m) # squared number of inputs
+    
+    N = 8 # prediction horizon
+    
     # print(Q)
     # print(R)
     
@@ -135,6 +140,18 @@ def main():
     
     # check for stability:
     spectral_radius(A, B, KN)
+
+
+
+
+    ###### Constraints #########
+
+    # state constraints?
+    #xmax = [[rxy_max], [rxy_max], [500], [20]]
+
+    # input constraints
+    # umax = np.array([[0.5],
+    #                  []])
    
 
     x0 = np.array([[1], 
@@ -156,17 +173,22 @@ def main():
 
     xs = []
     us = []
-    
+    ys = []
+
     while k <= timesteps:
 
         Uopt = KN@x# calculate the optimal control sequence
         uopt = Uopt[0:n, :] # extract the first m from the sequence
         x = A @ x + B @ uopt
+        y = C @ x
         k += 1
+        
         xs.append(x)
         us.append(uopt)
+        ys.append(y)
 
-    plot_output(xs, us)
+
+    plot_output(xs, us, ys)
 
     
 
@@ -179,18 +201,20 @@ def spectral_radius(A:np.array, B:np.array, KN:np.array):
     
     print('Stabilising', sr) if sr < 1 else print('Not Stabilising', sr)
 
-def plot_output(xs:list, us:list):
+def plot_output(xs:list, us:list, ys:list):
     # # Convert lists to numpy arrays for easier manipulation
     # expect xs, us to be a list of numpy arrays
     xs = np.array(xs).squeeze()
     us = np.array(us).squeeze()
+    ys = np.array(ys).squeeze()
+
 
     # Plotting the results
     plt.figure(figsize=(12, 6))
 
     # Plotting states
     state_label = ['$\Delta \omega (t)$', '$\Delta p^m (t)$', '$\Delta p^v (t)$', '$\Delta p^{dr} (t)$']
-    plt.subplot(2, 1, 1)
+    plt.subplot(3, 1, 1)
     for i in range(xs.shape[1]):
         plt.plot(xs[:, i], label=state_label[i])
     plt.title('State Trajectories')
@@ -201,12 +225,24 @@ def plot_output(xs:list, us:list):
 
     # Plotting control inputs
     control_label = ['$\Delta p^{m, ref} (t)$', '$\Delta p^{dr, ref} (t)$']
-    plt.subplot(2, 1, 2)
+    plt.subplot(3, 1, 2)
     for i in range(us.shape[1]):
         plt.plot(us[:, i], label=control_label[i])
     plt.title('Control Inputs')
     plt.xlabel('Time Step')
     plt.ylabel('Control Values')
+    plt.grid()
+    plt.legend()
+
+    # Plotting outputs
+    state_label = ['$\Delta \omega (t)$', '$\Delta p^m (t)$', '$\Delta p^v (t)$', '$\Delta p^{dr} (t)$']
+    plt.subplot(3, 1, 3)
+    plt.plot(ys, label='$\Delta \omega (t)$')
+    # for i in range(ys.shape[1]):
+    #     plt.plot(ys[:, i], label=state_label[i])
+    plt.title('Outputs')
+    plt.xlabel('Time Step')
+    plt.ylabel('Output Values')
     plt.grid()
     plt.legend()
 

@@ -5,7 +5,7 @@ import control as ct
 import control.matlab
 import matplotlib.pyplot as plt
 from scipy.linalg import kron
-
+import quadprog
 import math
 
 
@@ -24,7 +24,7 @@ def main():
     R = 0.05 
     T_t = 0.5 
     T_g = 0.2 
-    T_dr = 0.25 # demand response time (s)
+    T_dr = 0.2 # demand response time (s)
 
 
     #### Continuous Time System Models ####
@@ -78,7 +78,7 @@ def main():
     # print(Dc)
 
     BcEc = np.concatenate((Bc, Ec), axis=1)
-    print(BcEc)
+    # print(BcEc)
     
 
     ##### Discrete-time model generation #####
@@ -100,30 +100,58 @@ def main():
     
 
     ### Weighting matrices ###
-    # these are the tuning parameters
+    # these are some tuning parameters
     
-    # in this case, it's better to have the weighting matrices as eye() since the other values result in sq matrices but with zero weighting. 
-    Q = np.eye(n) # squared state
-    R = np.eye(m) # squared number of inputs
+    # Q = np.eye(n) # squared state
+
+    Q = np.array(
+    [   
+        [5, 0, 0, 0],   # \Delta \omega (t)
+        [0, 1, 0, 0],   # \Delta p^m
+        [0, 0, 1, 0],   # \Delta p^v
+        [0, 0, 0, 2]    # \Delta p^dr
     
-    N = 8 # prediction horizon
+    ]) #State weighting matrix
+
+    # R = np.eye(m) # squared number of inputs
+    R = np.array(
+    [
+        [0.5, 0], #\Delta p^m, ref
+        [0, 0.5]  #\Delta p^dr, ref
+    ]) #State weighting matrix
+    
+    N = 30 # prediction horizon
     
     # print(Q)
     # print(R)
     
     
-    K_inf = ct.dlqr(A, B, Q, R)
+    # K_inf = ct.dlqr(A, B, Q, R)
     K_2 = -1 * ct.place(A, B,[0.01, 0, 0, 0.01])
+
+
     # print(K_inf)
     # print(K_2)
+
 
     A_dlyap = (A+(B@K_2)).T
     Q_dlyap = (K_2.T @ R @ K_2) + Q
     
     # print(Q_dlyap)
 
+    try:
+        
+        P = ct.dlyap(A_dlyap, Q_dlyap)
+    except Exception as e:
+        print(f'An exception was raised:\n{e}')
+        
+        print(check_symmetric(Q_dlyap))
 
-    P = ct.dlyap(A_dlyap, Q_dlyap)
+        print(f'\n A_dlyap: \n{A_dlyap}\n Q_dlyap: \n{Q_dlyap}')
+        
+        exit()
+
+
     # print(P)
 
     F, G = predict_mats(A, B, N) # where N is the prediction horizon
@@ -141,44 +169,93 @@ def main():
     # check for stability:
     spectral_radius(A, B, KN)
 
-
-
-
     ###### Constraints #########
 
-    xmax = [[rxy_max], [rxy_max], [500], [20], [20], [15]]
-   
+    # state constraints?
+    #xmax = [[rxy_max], [rxy_max], [500], [20]]
 
-    x0 = np.array([[1], 
+    # input constraints
+    
+    umax = np.array([[0.5],     # \Delta pm_ref_max
+                     [0.5]])    # \Delta dr_ref_max
+
+    umin = np.array([[0.5],    # \Delta pm_ref_min
+                     [0.5]])   # \Delta dr_ref_min
+    
+    pu = np.eye(m)
+    Pu = np.vstack((pu, -pu))
+    qu = np.vstack((umax, umin))
+    
+    Pc, qc, Sc = constraint_mats_2(F, G, Pu=Pu, qu=qu)
+       
+    
+    # system starting states, dw(t), dpm(t), dpv(t), dpdr(t)
+    x0 = np.array([[0.5], 
                    [1], 
                    [0], 
-                   [1]])# system starting states, dw(t), dpm(t), dpv(t), dpdr(t)
+                   [1]])
     
-
+    
     u0 = np.array([[0], 
                    [0]]) # system inputs, dpm,ref(t) dpdr,ref(t)
     
+    # Uopt = S@x0#get the first set of optimal control inputs
 
-    Uopt = S@x0#get the first set of optimal control inputs
-
-
-    timesteps = 50
+    timesteps = 200
     k = 0
     x = x0
 
     xs = []
     us = []
-    
+    ys = []
+
+    # print(qc)
+    # print((Sc))
+    # print((Sc@x)+qc)
+    # exit()
+
     while k <= timesteps:
 
-        Uopt = KN@x# calculate the optimal control sequence
-        uopt = Uopt[0:n, :] # extract the first m from the sequence
-        x = A @ x + B @ uopt
-        k += 1
-        xs.append(x)
-        us.append(uopt)
+        try:
 
-    plot_output(xs, us)
+            a = L @ x
+            PcT = -Pc.T
+            b = -(qc + Sc @ x)  # Inequality constraint vector, note the sign change
+            a = a.flatten()
+            b = b.flatten()
+            # print(a)
+            # print(b)
+            # print(PcT)
+
+            Uopt = quadprog.solve_qp(H, a, PcT, b) # calculate the optimal control sequence, considering input constraints
+            # print(type(Uopt[0]))
+            Uopt = Uopt[0]
+
+            uopt = Uopt[:m].reshape(-1, 1)  # Ensure uopt is a column vector
+            
+            x = A @ x + B @ uopt 
+            y = C @ x
+
+            print(f'Iteration: {k}\n')
+            print(f'A: {A}\n')
+            print(f'x: {x}\n')
+
+            print(f'B: {B}\n')
+            print(f'uopt: {uopt}\n')
+
+            k += 1
+            
+            xs.append(x)
+            us.append(uopt)
+            ys.append(y)
+        
+        except(ValueError) as V:
+            print(V)
+            plot_output(xs, us, ys)
+            exit()
+
+
+    plot_output(xs, us, ys)
 
     
 
@@ -191,18 +268,20 @@ def spectral_radius(A:np.array, B:np.array, KN:np.array):
     
     print('Stabilising', sr) if sr < 1 else print('Not Stabilising', sr)
 
-def plot_output(xs:list, us:list):
+def plot_output(xs:list, us:list, ys:list):
     # # Convert lists to numpy arrays for easier manipulation
     # expect xs, us to be a list of numpy arrays
     xs = np.array(xs).squeeze()
     us = np.array(us).squeeze()
+    ys = np.array(ys).squeeze()
+
 
     # Plotting the results
     plt.figure(figsize=(12, 6))
 
     # Plotting states
     state_label = ['$\Delta \omega (t)$', '$\Delta p^m (t)$', '$\Delta p^v (t)$', '$\Delta p^{dr} (t)$']
-    plt.subplot(2, 1, 1)
+    plt.subplot(3, 1, 1)
     for i in range(xs.shape[1]):
         plt.plot(xs[:, i], label=state_label[i])
     plt.title('State Trajectories')
@@ -213,12 +292,24 @@ def plot_output(xs:list, us:list):
 
     # Plotting control inputs
     control_label = ['$\Delta p^{m, ref} (t)$', '$\Delta p^{dr, ref} (t)$']
-    plt.subplot(2, 1, 2)
+    plt.subplot(3, 1, 2)
     for i in range(us.shape[1]):
         plt.plot(us[:, i], label=control_label[i])
     plt.title('Control Inputs')
     plt.xlabel('Time Step')
     plt.ylabel('Control Values')
+    plt.grid()
+    plt.legend()
+
+    # Plotting outputs
+    state_label = ['$\Delta \omega (t)$', '$\Delta p^m (t)$', '$\Delta p^v (t)$', '$\Delta p^{dr} (t)$']
+    plt.subplot(3, 1, 3)
+    plt.plot(ys, label='$\Delta \omega (t)$')
+    # for i in range(ys.shape[1]):
+    #     plt.plot(ys[:, i], label=state_label[i])
+    plt.title('Outputs')
+    plt.xlabel('Time Step')
+    plt.ylabel('Output Values')
     plt.grid()
     plt.legend()
 
@@ -267,22 +358,94 @@ def predict_mats(A:np.array, B:np.array, N:int):
 
     return F, G
 
-def constraint_mats(F:np.array, G:np.array, Pu:np.array, qu:np.array, Px=None, qx=None, Pxf=None, qxf=None):
-    """
-    Returns the MPC constraints matrices for a system subject to constraints.
 
-    The function computes the matrices Pc, qc, and Sc from:
-    Pc * U(k) <= qc + Sc * x(k)
 
-    Parameters:
-        F, G : Prediction matrices
-        Pu, qu : Input constraints
-        Px, qx : State constraints (can be None if not applicable)
-        Pxf, qxf : Terminal constraints (can be None if not applicable)
+# def constraint_mats(F:np.array, G:np.array, Pu:np.array, qu:np.array, Px=None, qx=None, Pxf=None, qxf=None):
+#     """
+#     Returns the MPC constraints matrices for a system subject to constraints.
 
-    Returns:
-        Pc, qc, Sc : Matrices for constraints
-    """
+#     The function computes the matrices Pc, qc, and Sc from:
+#     Pc * U(k) <= qc + Sc * x(k)
+
+#     Parameters:
+#         F, G : Prediction matrices
+#         Pu, qu : Input constraints
+#         Px, qx : State constraints (can be None if not applicable)
+#         Pxf, qxf : Terminal constraints (can be None if not applicable)
+
+#     Returns:
+#         Pc, qc, Sc : Matrices for constraints
+#     """
+
+#     # Input dimension
+#     m = Pu.shape[1]
+
+#     # State dimension
+#     n = F.shape[1]
+
+#     # Horizon length
+#     N = F.shape[0] // n
+
+#     # Number of input constraints
+#     ncu = qu.size
+
+#     # Number of state constraints
+#     ncx = qx.size if qx is not None else 0
+
+#     # Number of terminal constraints
+#     ncf = qxf.size if qxf is not None else 0
+
+#     # If state constraints exist, but terminal ones do not, then extend the
+#     # former to the latter
+#     if ncf == 0 and ncx > 0:
+#         Pxf = Px
+#         qxf = qx
+#         ncf = ncx
+
+#     ## Input constraints
+
+#     # Build "tilde" (stacked) matrices for constraints over horizon
+#     Pu_tilde = kron(np.eye(N), Pu)
+#     qu_tilde = np.kron(np.ones((N, 1)), qu)
+#     Scu = np.zeros((ncu * N, n))
+
+#     ## State constraints
+
+#     # Build "tilde" (stacked) matrices for constraints over horizon
+#     Px0_tilde = np.vstack([Px, np.zeros((ncx * (N - 1) + ncf, n))]) if ncx > 0 else np.zeros((ncf, n))
+    
+#     if ncx > 0:
+#         Px_tilde = np.hstack([kron(np.eye(N - 1), Px), np.zeros((ncx * (N - 1), n))])
+#     else:
+#         Px_tilde = np.zeros((0, n * N))
+
+#     print(ncf)
+#     print(Pxf)
+
+#     Pxf_tilde = np.hstack([np.zeros((ncf, n * (N - 1))), Pxf])
+#     Px_tilde = np.vstack([np.zeros((ncx, n * N)), Px_tilde, Pxf_tilde])
+#     qx_tilde = np.vstack([kron(np.ones((N, 1)), qx), qxf]) if ncx > 0 else qxf
+
+#     ## Final stack
+#     if Px_tilde.size == 0:
+#         Pc = Pu_tilde
+#         qc = qu_tilde
+#         Sc = Scu
+#     else:
+#         # Eliminate x for final form
+#         Pc = np.vstack([Pu_tilde, Px_tilde @ G])
+#         qc = np.vstack([qu_tilde, qx_tilde])
+#         Sc = np.vstack([Scu, -Px0_tilde - Px_tilde @ F])
+
+#     return Pc, qc, Sc
+
+
+def constraint_mats_2(F, G, Pu, qu, Px=None, qx=None, Pxf=None, qxf=None):
+    # Set default values for Px, qx, Pxf, qxf if they are not provided
+    if Px is None: Px = np.array([])
+    if qx is None: qx = np.array([])
+    if Pxf is None: Pxf = np.array([])
+    if qxf is None: qxf = np.array([])
 
     # Input dimension
     m = Pu.shape[1]
@@ -294,55 +457,55 @@ def constraint_mats(F:np.array, G:np.array, Pu:np.array, qu:np.array, Px=None, q
     N = F.shape[0] // n
 
     # Number of input constraints
-    ncu = qu.size
+    ncu = len(qu)    
 
     # Number of state constraints
-    ncx = qx.size if qx is not None else 0
+    ncx = len(qx)
 
     # Number of terminal constraints
-    ncf = qxf.size if qxf is not None else 0
+    ncf = len(qxf)
 
-    # If state constraints exist, but terminal ones do not, then extend the
-    # former to the latter
+    # Extend state constraints to terminal if terminal ones are not provided
     if ncf == 0 and ncx > 0:
         Pxf = Px
         qxf = qx
         ncf = ncx
 
-    ## Input constraints
-
-    # Build "tilde" (stacked) matrices for constraints over horizon
-    Pu_tilde = kron(np.eye(N), Pu)
+    # Input constraints: Build "tilde" (stacked) matrices for constraints over horizon
+    Pu_tilde = np.kron(np.eye(N), Pu)
     qu_tilde = np.kron(np.ones((N, 1)), qu)
     Scu = np.zeros((ncu * N, n))
 
-    ## State constraints
-
-    # Build "tilde" (stacked) matrices for constraints over horizon
-    Px0_tilde = np.vstack([Px, np.zeros((ncx * (N - 1) + ncf, n))]) if ncx > 0 else np.zeros((ncf, n))
+    # State constraints: Build "tilde" (stacked) matrices for constraints over horizon
     
-    if ncx > 0:
-        Px_tilde = np.hstack([kron(np.eye(N - 1), Px), np.zeros((ncx * (N - 1), n))])
+    
+    if Px.size > 0:
+        Px0_tilde = np.vstack([Px, np.zeros((ncx * (N - 1) + ncf, n))])
+        if ncx > 0:
+            Px_tilde = np.hstack([np.kron(np.eye(N - 1), Px), np.zeros((ncx * (N - 1), n))])
+        else:
+            Px_tilde = np.zeros((ncx, n * N))
+        Pxf_tilde = np.hstack([np.zeros((ncf, n * (N - 1))), Pxf])
+        Px_tilde = np.vstack([np.zeros((ncx, n * N)), Px_tilde, Pxf_tilde])
+        qx_tilde = np.hstack([np.kron(np.ones(N), qx), qxf])
     else:
-        Px_tilde = np.zeros((0, n * N))
+        Px0_tilde = np.zeros((0, n))  # Empty matrix with correct dimensions
+        Px_tilde = np.zeros((0, n * N))  # Empty matrix with correct dimensions
+        qx_tilde = np.array([])  # Empty array
 
-    Pxf_tilde = np.hstack([np.zeros((ncf, n * (N - 1))), Pxf])
-    Px_tilde = np.vstack([np.zeros((ncx, n * N)), Px_tilde, Pxf_tilde])
-    qx_tilde = np.vstack([kron(np.ones((N, 1)), qx), qxf]) if ncx > 0 else qxf
-
-    ## Final stack
+    # Final stack
     if Px_tilde.size == 0:
         Pc = Pu_tilde
         qc = qu_tilde
         Sc = Scu
     else:
-        # Eliminate x for final form
+        # Eliminate x for the final form
         Pc = np.vstack([Pu_tilde, Px_tilde @ G])
         qc = np.vstack([qu_tilde, qx_tilde])
         Sc = np.vstack([Scu, -Px0_tilde - Px_tilde @ F])
 
     return Pc, qc, Sc
-    
+
 def cost_mats(F, G, Q, R, P):
     from scipy.linalg import block_diag
     """
@@ -412,7 +575,6 @@ def check_ctrb_obsv(A, B, C=None):
 
 
     return controllable, observable
-
 
 if __name__ == '__main__':
     main()
