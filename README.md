@@ -1,5 +1,7 @@
 # Grid MPC
 
+For the full problem definition, please see: [Assignment](/docs/ACS6116%20assignment.pdf)
+
 The challenge is to design an MPC-based controller for maintaining the stability of an electricity grid that uses renewables for generation. 
 
 The system block diagram is given as the following:
@@ -97,8 +99,8 @@ First attempt at the unconstrained controller
 
 ![unconstrained version 1](/docs/Figure_1_unconstrained.png)
 
-Here we can see the unconstrained controller successfully controlling the system. 
-The controller itself can be validated as _stabilising_ through checking the spectral radius, which returns $SR = 0.8095604134222927\le 1$ hence the controller is stabilising. 
+Here we can see the unconstrained controller exerting control over the system. 
+The controller itself can be validated as _stabilising_ through checking the spectral radius, which returns $SR = 0.8095604134222927\le 1$ hence the controller is stabilising.
 
 
 #### Tuning Controller Variables
@@ -137,8 +139,22 @@ R = \begin{pmatrix}
 
 ## Constrained
 
-### Setting the Constraints
+### Modelling the Constraints
 Constraints within MPC are more convenient if written as linear inequality constraints. 
+
+<!--
+We have the following constraints given as part of the problem. 
+
+
+ ```math
+
+\begin{bmatrix}
+
+
+
+\end{bmatrix}
+
+``` -->
 
 
 
