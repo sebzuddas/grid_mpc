@@ -66,8 +66,6 @@ else
     disp('KN stabilising')
 end
 
-
-
 time_steps = 100
 
 % Unconstrained

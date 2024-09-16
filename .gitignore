@@ -1,5 +1,5 @@
 # chosen:
-docs/*.pdf
+
 .vscode/*
 
 # Byte-compiled / optimized / DLL files

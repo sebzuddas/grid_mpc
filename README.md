@@ -138,9 +138,33 @@ R = \begin{pmatrix}
 
 
 ## Constrained
+### Attempt 1
+the first attempt at tuning the constrained controller yields the following output
 
-### Modelling the Constraints
-Constraints within MPC are more convenient if written as linear inequality constraints. 
+![constrained_1](docs/constrained_graphs_1.png)
+
+This was achieved with matrices $Q$ and $R$
+
+```math
+Q = \begin{pmatrix}
+0.0001&0&0&0\\
+0&0.0001&0&0\\
+0&0&0.00001&0\\
+0&0&0&0.0000001
+\end{pmatrix}
+```
+
+
+```math
+R = \begin{pmatrix}
+4&0\\
+0&0.05
+\end{pmatrix}
+```
+    
+
+<!-- ### Modelling the Constraints
+Constraints within MPC are more convenient if written as linear inequality constraints.  -->
 
 <!--
 We have the following constraints given as part of the problem. 
@@ -153,8 +177,10 @@ We have the following constraints given as part of the problem.
 
 
 \end{bmatrix}
-
+qwe
 ``` -->
+
+
 
 
 

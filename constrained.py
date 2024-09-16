@@ -24,7 +24,7 @@ def main():
     R = 0.05 
     T_t = 0.5 
     T_g = 0.2 
-    T_dr = 0.2 # demand response time (s)
+    T_dr = 0.25 # demand response time (s)
 
 
     #### Continuous Time System Models ####
@@ -91,6 +91,8 @@ def main():
     # Separate inputs B and disturbances E
     # print(BE)
     B = BE[:, 0:m]
+    
+    #TODO: implement E
     E = BE[:, m:]
 
     # print(A)
@@ -102,55 +104,47 @@ def main():
     ### Weighting matrices ###
     # these are some tuning parameters
     
-    # Q = np.eye(n) # squared state
-
     Q = np.array(
     [   
-        [5, 0, 0, 0],   # \Delta \omega (t)
-        [0, 1, 0, 0],   # \Delta p^m
-        [0, 0, 1, 0],   # \Delta p^v
-        [0, 0, 0, 2]    # \Delta p^dr
-    
-    ]) #State weighting matrix
+        [0.0001, 0, 0, 0],   # \Delta \omega (t)
+        [0, 0.0001, 0, 0],   # \Delta p^m
+        [0, 0, 0.00001, 0],   # \Delta p^v
+        [0, 0, 0, 0.0000001]    # \Delta p^dr
+    ]) #State cost matrix
 
-    # R = np.eye(m) # squared number of inputs
     R = np.array(
     [
-        [0.5, 0], #\Delta p^m, ref
-        [0, 0.5]  #\Delta p^dr, ref
-    ]) #State weighting matrix
+        [4, 0], #\Delta p^m, ref - financially cheaper to do
+        [0, 0.05]  #\Delta p^dr, ref - financially more expensive
+    ]) #Input cost matrix
     
-    N = 30 # prediction horizon
-    
-    # print(Q)
-    # print(R)
-    
+    N = 18 # prediction horizon
     
     # K_inf = ct.dlqr(A, B, Q, R)
     K_2 = -1 * ct.place(A, B,[0.01, 0, 0, 0.01])
 
-
     # print(K_inf)
     # print(K_2)
 
-
     A_dlyap = (A+(B@K_2)).T
-    Q_dlyap = (K_2.T @ R @ K_2) + Q
+    Q_dlyap = (Q + K_2.T @ R @ K_2)
     
     # print(Q_dlyap)
 
     try:
         
-        P = ct.dlyap(A_dlyap, Q_dlyap)
+        P = ct.dlyap(A_dlyap, Q_dlyap)# where P is the solution to the lyapunov equation
+        # an extra constraint in python is that Qdlyap has to be symmetric, which isn't true with MATLAB. 
+        # In theory it needs to be a Hermitian matrix, a seemingly looser condition that symmetry
+
     except Exception as e:
         print(f'An exception was raised:\n{e}')
         
-        print(check_symmetric(Q_dlyap))
+        print(f'\nIs Q actually symmetric? {check_symmetric(Q_dlyap)}')
 
-        print(f'\n A_dlyap: \n{A_dlyap}\n Q_dlyap: \n{Q_dlyap}')
+        print(f'\nA_dlyap: \n{A_dlyap}\n Q_dlyap: \n{Q_dlyap}')
         
         exit()
-
 
     # print(P)
 
@@ -177,31 +171,28 @@ def main():
     # input constraints
     
     umax = np.array([[0.5],     # \Delta pm_ref_max
-                     [0.5]])    # \Delta dr_ref_max
+                     [1000000]])    # \Delta dr_ref_max
 
     umin = np.array([[0.5],    # \Delta pm_ref_min
-                     [0.5]])   # \Delta dr_ref_min
+                     [0]])   # \Delta dr_ref_min
     
-    pu = np.eye(m)
+    pu = np.eye(m)# make the matrix for
     Pu = np.vstack((pu, -pu))
     qu = np.vstack((umax, umin))
     
     Pc, qc, Sc = constraint_mats_2(F, G, Pu=Pu, qu=qu)
-       
     
     # system starting states, dw(t), dpm(t), dpv(t), dpdr(t)
-    x0 = np.array([[0.5], 
-                   [1], 
-                   [0], 
-                   [1]])
-    
+    x0 = np.array([
+        [0.1],
+        [0],
+        [0],
+        [0]])
     
     u0 = np.array([[0], 
                    [0]]) # system inputs, dpm,ref(t) dpdr,ref(t)
-    
-    # Uopt = S@x0#get the first set of optimal control inputs
 
-    timesteps = 200
+    timesteps = 1000
     k = 0
     x = x0
 
@@ -232,14 +223,13 @@ def main():
             Uopt = Uopt[0]
 
             uopt = Uopt[:m].reshape(-1, 1)  # Ensure uopt is a column vector
-            
+
             x = A @ x + B @ uopt 
-            y = C @ x
+            y = C @ x # no Du term
 
             print(f'Iteration: {k}\n')
             print(f'A: {A}\n')
             print(f'x: {x}\n')
-
             print(f'B: {B}\n')
             print(f'uopt: {uopt}\n')
 
@@ -302,11 +292,8 @@ def plot_output(xs:list, us:list, ys:list):
     plt.legend()
 
     # Plotting outputs
-    state_label = ['$\Delta \omega (t)$', '$\Delta p^m (t)$', '$\Delta p^v (t)$', '$\Delta p^{dr} (t)$']
     plt.subplot(3, 1, 3)
-    plt.plot(ys, label='$\Delta \omega (t)$')
-    # for i in range(ys.shape[1]):
-    #     plt.plot(ys[:, i], label=state_label[i])
+    plt.plot(ys, label='$\Delta f (t)$')
     plt.title('Outputs')
     plt.xlabel('Time Step')
     plt.ylabel('Output Values')
