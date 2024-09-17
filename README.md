@@ -141,7 +141,7 @@ R = \begin{pmatrix}
 ### Attempt 1
 the first attempt at tuning the constrained controller yields the following output
 
-![constrained_1](docs/constrained_graphs_1.png)
+![constrained_1](/docs/constrained_graphs_1.png)
 
 This was achieved with matrices $Q$ and $R$
 
