@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid MPC</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+
+<h1>Grid MPC</h1>
+
+<p>For the full problem definition, please see: <a href="docs/ACS6116%20assignment.pdf">Assignment</a></p>
+
+<p>The challenge is to design an MPC-based controller for maintaining the stability of an electricity grid that uses renewables for generation.</p>
+
+<p>The system block diagram is given as the following:</p>
+<img src="docs/system_transfer_fcns.png" alt="System block diagram" />
+
+<p>The given state-space prediction model is:</p>
+
+<p>
+$$
+\frac{d}{dt}
+\begin{pmatrix}
+\Delta \omega(t)\\
+\Delta p^m(t)\\
+\Delta p^v(t)\\
+\Delta p^{dr}(t)
+\end{pmatrix}
+= 
+\begin{pmatrix}
+-D/M & 1/M & 0 & 1/M\\
+0 & -1/T^t & 1/T^t & 0 \\
+-1/(R\cdot T^g) & 0 & -1/T^g &0 \\
+0 & 0 & 0 & -1/T^{dr}
+\end{pmatrix}
+\begin{pmatrix}
+\Delta \omega(t)\\
+\Delta p^m(t)\\
+\Delta p^v(t)\\
+\Delta p^{dr}(t)
+\end{pmatrix}
++
+\begin{pmatrix}
+0 & 0\\
+0 & 0\\
+1/T^g & 0\\
+0 & 1/T^{dr}
+\end{pmatrix}
+\begin{pmatrix}
+\Delta p^{m, ref}(t) \\
+\Delta p^{dr, ref}(t)
+\end{pmatrix}
++
+\begin{pmatrix}
+-1/M\\
+0\\
+0\\
+0
+\end{pmatrix}
+\Delta p^{load}(t)
+$$
+</p>
+
+<p>
+$$
+\Delta f(t) = 
+\begin{pmatrix}
+50 & 0 & 0 & 0 
+\end{pmatrix}
+\begin{pmatrix}
+\Delta \omega(t)\\
+\Delta p^m(t)\\
+\Delta p^v(t)\\
+\Delta p^{dr}(t)
+\end{pmatrix}
+$$
+</p>
+
+<h3>Explaining the Variables</h3>
+
+<ul>
+<li><strong>&Delta; &omega; (t)</strong> represents the deviation of <strong>grid frequency</strong> from the synchronous frequency of 50Hz, using a normalized unit.</li>
+<li><strong>&Delta; p<sup>m</sup> (t)</strong> represents the deviation from the <strong>nominal mechanical</strong> power output of the steam turbine, using a normalized unit.</li>
+<li><strong>&Delta; p<sup>v</sup> (t)</strong> represents the deviation from the <strong>governed mechanical</strong> power output of the governor, using a normalized unit.</li>
+<li><strong>&Delta; p<sup>dr</sup> (t)</strong> represents the <strong>demand response</strong>, using a normalized unit.</li>
+<li><strong>&Delta; p<sup>load</sup> (t)</strong> represents the deviation from <strong>nominal net power demand</strong>, using a normalized unit.</li>
+</ul>
+
+<h3>Tuning Parameters</h3>
+
+<p>Within the controller, the Q and R matrices prioritize different states or inputs as part of the optimization procedure, and changing the prediction horizon N alters how far ahead the controller optimizes.</p>
+
+<h2>Unconstrained</h2>
+<p>First attempt at the unconstrained controller</p>
+<img src="docs/Figure_1_unconstrained.png" alt="unconstrained version 1" />
+
+<p>
+$$
+Q = \begin{pmatrix}
+1 & 0 & 0 & 0\\
+0 & 1 & 0 & 0\\
+0 & 0 & 1 & 0\\
+0 & 0 & 0 & 1
+\end{pmatrix}
+\cdot 
+\begin{pmatrix}
+\Delta \omega(t)\\
+\Delta p^m(t)\\
+\Delta p^v(t)\\
+\Delta p^{dr}(t)
+\end{pmatrix}
+$$
+</p>
+
+<p>
+$$
+R = \begin{pmatrix}
+1 & 0\\
+0 & 1
+\end{pmatrix}
+\cdot 
+\begin{pmatrix}
+\Delta p^{m, ref}(t) \\
+\Delta p^{dr, ref}(t) \\
+\end{pmatrix}
+$$
+</p>
+
+<h2>Constrained</h2>
+<h3>Attempt 1</h3>
+
+<p>The first attempt at tuning the constrained controller yields the following output:</p>
+<img src="docs/constrained_graphs_1.png" alt="constrained_1" />
+
+<p>This was achieved with matrices Q and R:</p>
+
+<p>
+$$
+Q = \begin{pmatrix}
+0.0001 & 0 & 0 & 0\\
+0 & 0.0001 & 0 & 0\\
+0 & 0 & 0.00001 & 0\\
+0 & 0 & 0 & 0.0000001
+\end{pmatrix}
+$$
+</p>
+
+<p>
+$$
+R = \begin{pmatrix}
+4 & 0\\
+0 & 0.05
+\end{pmatrix}
+$$
+</p>
+
+<h2>Disturbance Rejection</h2>
+
+<h2>Reference Tracking</h2>
+
+</body>
+</html>
