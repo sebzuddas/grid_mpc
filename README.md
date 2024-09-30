@@ -138,6 +138,44 @@ R = \begin{pmatrix}
 
 
 ## Constrained
+
+Constraint modelling requires translating the requirement into bounds on either the states $\vec x$ or inputs $\vec u$. When developing an MPC controller, it is important to introduce constraints gradually, and tune the controller incrementally. This approach ensures that you can maintain the feasibility of a given controller as you tune $Q$, $R$ and $N$. 
+
+We begin by introducing input constraints, defined as 
+
+```math
+\begin{cases}
+|\Delta p^{m, ref}(t)| \le 0.5 \\
+\Delta p^{dr, ref}(t) \ge 0
+\end{cases}
+```
+We also have output constraints, defined as
+```math
+\begin{cases}
+|\Delta f(t)| \le 0.5
+\end{cases}
+```
+We convert the input constraints into linear inequalities as follows:
+
+```math
+P_u = 
+
+\begin{bmatrix}
+1 & 0\\
+-1 & 0\\
+0 & 1\\
+0 & -1\\
+\end{bmatrix}
+\
+
+q_u= \begin{bmatrix}
+0.5\\
+0.5\\
+\infty \\
+0
+\end{bmatrix}
+```
+
 ### Attempt 1
 the first attempt at tuning the constrained controller yields the following output
 
@@ -161,7 +199,32 @@ R = \begin{pmatrix}
 0&0.05
 \end{pmatrix}
 ```
-    
+
+### Attempt 2
+After editing the code further and making more adjustments to the matrices, the following output was achieved. 
+
+![constrained_2](/docs/constrained_attempt_2.png)
+
+
+This was achieved with matrices $Q$ and $R$
+
+
+```math
+Q = \begin{pmatrix}
+0.0001&0&0&0\\
+0&0.0001&0&0\\
+0&0&0.00001&0\\
+0&0&0&0.0000001
+\end{pmatrix}
+```
+
+
+```math
+R = \begin{pmatrix}
+1&0\\
+0&0.05
+\end{pmatrix}
+```
 
 <!-- ### Modelling the Constraints
 Constraints within MPC are more convenient if written as linear inequality constraints.  -->

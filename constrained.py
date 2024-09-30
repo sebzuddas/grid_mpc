@@ -114,8 +114,8 @@ def main():
 
     R = np.array(
     [
-        [4, 0], #\Delta p^m, ref - financially cheaper to do
-        [0, 0.05]  #\Delta p^dr, ref - financially more expensive
+        [1, 0], #\Delta p^m, ref - financially cheaper to do
+        [0, 0.5]  #\Delta p^dr, ref - financially more expensive
     ]) #Input cost matrix
     
     N = 18 # prediction horizon
@@ -168,20 +168,43 @@ def main():
     # state constraints?
     #xmax = [[rxy_max], [rxy_max], [500], [20]]
 
-    # input constraints
+    # input constraints WORKING
     
-    umax = np.array([[0.5],     # \Delta pm_ref_max
-                     [1000000]])    # \Delta dr_ref_max
+    # umax = np.array([[0.5],     # \Delta pm_ref_max
+    #                  [1000000]])    # \Delta dr_ref_max
 
-    umin = np.array([[0.5],    # \Delta pm_ref_min
-                     [0]])   # \Delta dr_ref_min
+    # umin = np.array([[0.5],    # \Delta pm_ref_min
+    #                  [0]])   # \Delta dr_ref_min
     
-    pu = np.eye(m)# make the matrix for
-    Pu = np.vstack((pu, -pu))
-    qu = np.vstack((umax, umin))
+    # pu = np.eye(m)# make the matrix for
+    # Pu = np.vstack((pu, -pu))
+    # qu = np.vstack((umax, umin))
+
+    
+    ### With linear inequalities only
+
+    Pu = np.array([[1, 0],
+                   [-1, 0],
+                   [0, 1],
+                   [0, -1]])
+
+    qu = np.array([[0.5], 
+                   [0.5], 
+                   [1], 
+                   [0]])
+
+    # print(pu)
+    # print(Pu)
+    # print(qu)
+
+    
     
     Pc, qc, Sc = constraint_mats_2(F, G, Pu=Pu, qu=qu)
     
+
+
+    
+
     # system starting states, dw(t), dpm(t), dpv(t), dpdr(t)
     x0 = np.array([
         [0.1],
@@ -192,7 +215,7 @@ def main():
     u0 = np.array([[0], 
                    [0]]) # system inputs, dpm,ref(t) dpdr,ref(t)
 
-    timesteps = 1000
+    timesteps = 300
     k = 0
     x = x0
 
