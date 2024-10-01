@@ -176,31 +176,7 @@ q_u= \begin{bmatrix}
 \end{bmatrix}
 ```
 
-### Attempt 1
-the first attempt at tuning the constrained controller yields the following output
-
-![constrained_1](/docs/constrained_graphs_1.png)
-
-This was achieved with matrices $Q$ and $R$
-
-```math
-Q = \begin{pmatrix}
-0.0001&0&0&0\\
-0&0.0001&0&0\\
-0&0&0.00001&0\\
-0&0&0&0.0000001
-\end{pmatrix}
-```
-
-
-```math
-R = \begin{pmatrix}
-4&0\\
-0&0.05
-\end{pmatrix}
-```
-
-### Attempt 2
+### Outcome
 After editing the code further and making more adjustments to the matrices, the following output was achieved. 
 
 ![constrained_2](/docs/constrained_attempt_2.png)
