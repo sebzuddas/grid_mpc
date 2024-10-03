@@ -162,18 +162,37 @@ P_u =
 
 \begin{bmatrix}
 1 & 0\\
--1 & 0\\
 0 & 1\\
+-1 & 0\\
 0 & -1\\
 \end{bmatrix}
 \
 
 q_u= \begin{bmatrix}
 0.5\\
-0.5\\
-\infty \\
+1\\
+0.5 \\
 0
 \end{bmatrix}
+```
+
+And, we have only output constraints, meaning we create the following linear inequalitie:
+
+```math
+
+P_x = \begin{bmatrix}
+C\\
+-C
+\end{bmatrix}
+
+\
+
+q_x = \begin{bmatrix}
+0.5\\
+0.5
+
+\end{bmatrix}
+
 ```
 
 ### Outcome

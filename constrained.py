@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from scipy.linalg import kron
 import quadprog
 import math
+import random
 
 
 def main():
@@ -65,7 +66,6 @@ def main():
     BcEc = np.concatenate((Bc, Ec), axis=1)
     # print(BcEc)
     
-
     ##### Discrete-time model generation #####
 
     #obtains the discrete time prediction model
@@ -84,7 +84,6 @@ def main():
     # print(B)
     # print(C)
     # print(E)
-    
 
     ### Weighting matrices ###
     # these are some tuning parameters
@@ -114,8 +113,6 @@ def main():
     A_dlyap = (A+(B@K_2)).T
     Q_dlyap = (Q + K_2.T @ R @ K_2)
     
-    # print(Q_dlyap)
-
     try:
         
         P = ct.dlyap(A_dlyap, Q_dlyap)# where P is the solution to the lyapunov equation
@@ -157,27 +154,27 @@ def main():
                    [-1, 0],#-I
                    [0, -1]])
 
-    qu = np.array([[0.5], 
-                   [1], 
-                   [0.5], 
+    qu = np.array([[0.5],
+                   [1],
+                   [0.5],
                    [0]])
     
-    Px = np.vstack((Cc, -Cc))
+    Px = np.vstack((C, -C))
     
-    qx = np.array([[5], 
+    qx = np.array([[4],
                    [0.5]])
 
     Pc, qc, Sc = constraint_mats_2(F, G, Pu=Pu, qu=qu, Px=Px, qx=qx)
 
     # system starting states, dw(t), dpm(t), dpv(t), dpdr(t)
     x0 = np.array([
-        [0.1],
-        [0],
-        [0],
+        [0.01],
+        [1],
+        [1],
         [-1]])
     
     u0 = np.array([[0], 
-                   [0.1]]) # system inputs, dpm,ref(t) dpdr,ref(t)
+                   [0]]) # system inputs, dpm,ref(t) dpdr,ref(t)
 
     timesteps = 150
     k = 0
@@ -208,7 +205,13 @@ def main():
 
             uopt = Uopt[:m].reshape(-1, 1)  # Ensure uopt is a column vector
 
-            x = A @ x + B @ uopt 
+            d = np.array([[abs(random.gauss(mu=0.1, sigma=0.1))], 
+                          [abs(random.gauss(mu=0.1, sigma=0.1))]])
+            
+            # print(d)
+            # exit()
+
+            x = A @ x + B @ (uopt + d) # adding in disturbance, such a model assumes B=E, and this may not be needed. 
             y = C @ x # no Du term
 
             # print(f'Iteration: {k}\n')
@@ -241,8 +244,6 @@ def main():
 
     #####TODO: Implement evaluating the solution via a summation of the dr curve. 
 
-    
-
     xs = np.array(xs).squeeze()
     us = np.array(us).squeeze()
     ys = np.array(ys).squeeze()
@@ -250,11 +251,17 @@ def main():
     prices = np.array([0.12, 3.37]) # demand response = 3.37, paying power producers = 0.12
     costed_control_inputs = np.multiply(np.abs(us), prices)# make all values positive
     costed_control_inputs_cumsum = np.cumsum(np.abs(costed_control_inputs), axis=0)# get the cumulative summation to see how costs grow
+    total_cost_vector = np.sum(costed_control_inputs_cumsum, axis=1)    
+    combined_costs = np.column_stack((costed_control_inputs_cumsum, total_cost_vector))
+    
+    # costed_control_inputs_cumsum = np.concatenate(costed_control_inputs_cumsum, total_cost_vector)
+    # print(costed_control_inputs_cumsum)
+    # exit()
     total_cost_of_inputs = costed_control_inputs_cumsum[-1]# get last element from cumsum
     total_cost_of_inputs_summed = np.sum(total_cost_of_inputs)# get total cost of controller
     print(total_cost_of_inputs_summed)
 
-    plot_output(xs, us, ys, costed_control_inputs_cumsum)
+    plot_output(xs, us, ys, combined_costs)
 
 
 
@@ -300,7 +307,7 @@ def plot_output(xs:np.array, us:np.array, ys:np.array, costed_control_inputs_cum
 
 
     # Plotting outputs
-    price_label = ['m,ref cost (£)', 'm, dr cost (£)']
+    price_label = ['m,ref cost (£)', 'm, dr cost (£)', 'Total Cost (£)']
     plt.subplot(4, 1, 3)
     for i in range(len(price_label)):
         plt.plot(costed_control_inputs_cumsum[:, i], label=price_label[i])
