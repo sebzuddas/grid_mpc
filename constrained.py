@@ -54,22 +54,6 @@ def main():
     # exit()
 
     # D = np.zeros(p, n)
-
-
-    # Weighting Matrices
-    #TODO: Check
-    # Q = C @ C.T # C'*C - weights on the states
-    # R = np.transpose(B) @ B # B'*B
-    
-    
-
-
-    # print(B.shape[1])
-    # print(Ac.shape, Bc.shape, Cc.shape)
-    # print(Ac)
-    # print(Bc)
-    # print(Cc)
-    
     
     n = Ac.shape[0] # number of states nxn
     m = Bc.shape[1] # number of inputs nxp
@@ -115,8 +99,8 @@ def main():
 
     R = np.array(
     [
-        [1, 0], #\Delta p^m, ref - financially cheaper to do
-        [0, 0.5]  #\Delta p^dr, ref - financially more expensive
+        [0.5, 0], #\Delta p^m, ref - financially cheaper to do
+        [0, 2]  #\Delta p^dr, ref - financially more expensive
     ]) #Input cost matrix
     
     N = 18 # prediction horizon
@@ -195,14 +179,13 @@ def main():
     u0 = np.array([[0], 
                    [0.1]]) # system inputs, dpm,ref(t) dpdr,ref(t)
 
-    timesteps = 300
+    timesteps = 150
     k = 0
     x = x0
 
     xs = []
     us = []
     ys = []
-
 
     # print(qc)
     # print((Sc))
@@ -218,9 +201,6 @@ def main():
             b = -(qc + Sc @ x)  # Inequality constraint vector, note the sign change
             a = a.flatten()
             b = b.flatten()
-            # print(a)
-            # print(b)
-            # print(PcT)
 
             Uopt = quadprog.solve_qp(H, a, PcT, b) # calculate the optimal control sequence, considering input constraints
             # print(type(Uopt[0]))
@@ -252,6 +232,10 @@ def main():
             print(f'B: {B}\n')
             print(f'uopt: {uopt}\n')
 
+            xs = np.array(xs).squeeze()
+            us = np.array(us).squeeze()
+            ys = np.array(ys).squeeze()
+
             plot_output(xs, us, ys, costed_control_inputs_cumsum)
             exit()
 
@@ -270,11 +254,10 @@ def main():
     total_cost_of_inputs_summed = np.sum(total_cost_of_inputs)# get total cost of controller
     print(total_cost_of_inputs_summed)
 
-
     plot_output(xs, us, ys, costed_control_inputs_cumsum)
 
 
-    
+
 
 def spectral_radius(A:np.array, B:np.array, KN:np.array):
      ### Calculating the stability of A+B@KN ###
@@ -288,9 +271,6 @@ def spectral_radius(A:np.array, B:np.array, KN:np.array):
 def plot_output(xs:np.array, us:np.array, ys:np.array, costed_control_inputs_cumsum:np.array):
     # # Convert lists to numpy arrays for easier manipulation
     # expect xs, us to be a list of numpy arrays
-
-
-
 
     # Plotting the results
     plt.figure(figsize=(12, 6))
@@ -383,8 +363,6 @@ def predict_mats(A:np.array, B:np.array, N:int):
             G[n * i:n * (i + 1), m * j:m * (j + 1)] = np.linalg.matrix_power(A, i - j) @ B
 
     return F, G
-
-
 
 # def constraint_mats(F, G, Pu, qu, Px, qx, Pxf, qxf):
 #     # input dimension
@@ -502,10 +480,7 @@ def constraint_mats_2(F, G, Pu, qu, Px=None, qx=None, Pxf=None, qxf=None):
         qc = np.vstack([qu_tilde, qx_tilde])
         Sc = np.vstack([Scu, -Px0_tilde - Px_tilde @ F])
 
-    return Pc, qc, Sc
-
-
-    
+    return Pc, qc, Sc  
 
 def cost_mats(F, G, Q, R, P):
     from scipy.linalg import block_diag
