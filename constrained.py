@@ -24,7 +24,7 @@ def main():
     R = 0.05 
     T_t = 0.5 
     T_g = 0.2 
-    T_dr = 0.25 # demand response time (s)
+    T_dr = 0.25 # demand response time (s), standard is 0.25
 
 
     #### Continuous Time System Models ####
@@ -49,7 +49,8 @@ def main():
     
     Cc = np.array([[50], [0], [0], [0]]) # Output matrix
     Cc = Cc.T
-    # print(C)
+
+    # print(Cc)
     # exit()
 
     # D = np.zeros(p, n)
@@ -164,56 +165,35 @@ def main():
     spectral_radius(A, B, KN)
 
     ###### Constraints #########
-
-    # state constraints?
-    #xmax = [[rxy_max], [rxy_max], [500], [20]]
-
-    # input constraints WORKING
-    
-    # umax = np.array([[0.5],     # \Delta pm_ref_max
-    #                  [1000000]])    # \Delta dr_ref_max
-
-    # umin = np.array([[0.5],    # \Delta pm_ref_min
-    #                  [0]])   # \Delta dr_ref_min
-    
-    # pu = np.eye(m)# make the matrix for
-    # Pu = np.vstack((pu, -pu))
-    # qu = np.vstack((umax, umin))
-
     
     ### With linear inequalities only
 
-    Pu = np.array([[1, 0],
-                   [-1, 0],
+    Pu = np.array([[1, 0],#+I
                    [0, 1],
+                   [-1, 0],#-I
                    [0, -1]])
 
     qu = np.array([[0.5], 
-                   [0.5], 
                    [1], 
+                   [0.5], 
                    [0]])
-
-    # print(pu)
-    # print(Pu)
-    # print(qu)
-
     
+    Px = np.vstack((Cc, -Cc))
     
-    Pc, qc, Sc = constraint_mats_2(F, G, Pu=Pu, qu=qu)
-    
+    qx = np.array([[5], 
+                   [0.5]])
 
-
-    
+    Pc, qc, Sc = constraint_mats_2(F, G, Pu=Pu, qu=qu, Px=Px, qx=qx)
 
     # system starting states, dw(t), dpm(t), dpv(t), dpdr(t)
     x0 = np.array([
         [0.1],
         [0],
         [0],
-        [0]])
+        [-1]])
     
     u0 = np.array([[0], 
-                   [0]]) # system inputs, dpm,ref(t) dpdr,ref(t)
+                   [0.1]]) # system inputs, dpm,ref(t) dpdr,ref(t)
 
     timesteps = 300
     k = 0
@@ -222,6 +202,7 @@ def main():
     xs = []
     us = []
     ys = []
+
 
     # print(qc)
     # print((Sc))
@@ -250,11 +231,11 @@ def main():
             x = A @ x + B @ uopt 
             y = C @ x # no Du term
 
-            print(f'Iteration: {k}\n')
-            print(f'A: {A}\n')
-            print(f'x: {x}\n')
-            print(f'B: {B}\n')
-            print(f'uopt: {uopt}\n')
+            # print(f'Iteration: {k}\n')
+            # print(f'A: {A}\n')
+            # print(f'x: {x}\n')
+            # print(f'B: {B}\n')
+            # print(f'uopt: {uopt}\n')
 
             k += 1
             
@@ -264,11 +245,34 @@ def main():
         
         except(ValueError) as V:
             print(V)
-            plot_output(xs, us, ys)
+
+            print(f'Iteration: {k}\n')
+            print(f'A: {A}\n')
+            print(f'x: {x}\n')
+            print(f'B: {B}\n')
+            print(f'uopt: {uopt}\n')
+
+            plot_output(xs, us, ys, costed_control_inputs_cumsum)
             exit()
 
+    #####TODO: Implement evaluating the solution via a summation of the dr curve. 
 
-    plot_output(xs, us, ys)
+    
+
+    xs = np.array(xs).squeeze()
+    us = np.array(us).squeeze()
+    ys = np.array(ys).squeeze()
+
+    prices = np.array([0.12, 3.37]) # demand response = 3.37, paying power producers = 0.12
+    costed_control_inputs = np.multiply(np.abs(us), prices)# make all values positive
+    costed_control_inputs_cumsum = np.cumsum(np.abs(costed_control_inputs), axis=0)# get the cumulative summation to see how costs grow
+    total_cost_of_inputs = costed_control_inputs_cumsum[-1]# get last element from cumsum
+    total_cost_of_inputs_summed = np.sum(total_cost_of_inputs)# get total cost of controller
+    print(total_cost_of_inputs_summed)
+
+
+    plot_output(xs, us, ys, costed_control_inputs_cumsum)
+
 
     
 
@@ -281,12 +285,11 @@ def spectral_radius(A:np.array, B:np.array, KN:np.array):
     
     print('Stabilising', sr) if sr < 1 else print('Not Stabilising', sr)
 
-def plot_output(xs:list, us:list, ys:list):
+def plot_output(xs:np.array, us:np.array, ys:np.array, costed_control_inputs_cumsum:np.array):
     # # Convert lists to numpy arrays for easier manipulation
     # expect xs, us to be a list of numpy arrays
-    xs = np.array(xs).squeeze()
-    us = np.array(us).squeeze()
-    ys = np.array(ys).squeeze()
+
+
 
 
     # Plotting the results
@@ -294,7 +297,7 @@ def plot_output(xs:list, us:list, ys:list):
 
     # Plotting states
     state_label = ['$\Delta \omega (t)$', '$\Delta p^m (t)$', '$\Delta p^v (t)$', '$\Delta p^{dr} (t)$']
-    plt.subplot(3, 1, 1)
+    plt.subplot(4, 1, 1)
     for i in range(xs.shape[1]):
         plt.plot(xs[:, i], label=state_label[i])
     plt.title('State Trajectories')
@@ -305,7 +308,7 @@ def plot_output(xs:list, us:list, ys:list):
 
     # Plotting control inputs
     control_label = ['$\Delta p^{m, ref} (t)$', '$\Delta p^{dr, ref} (t)$']
-    plt.subplot(3, 1, 2)
+    plt.subplot(4, 1, 2)
     for i in range(us.shape[1]):
         plt.plot(us[:, i], label=control_label[i])
     plt.title('Control Inputs')
@@ -313,9 +316,22 @@ def plot_output(xs:list, us:list, ys:list):
     plt.ylabel('Control Values')
     plt.grid()
     plt.legend()
+    
+
 
     # Plotting outputs
-    plt.subplot(3, 1, 3)
+    price_label = ['m,ref cost (£)', 'm, dr cost (£)']
+    plt.subplot(4, 1, 3)
+    for i in range(len(price_label)):
+        plt.plot(costed_control_inputs_cumsum[:, i], label=price_label[i])
+    plt.title('Control Action Cost')
+    plt.xlabel('Time Step')
+    plt.ylabel('Total Cost')
+    plt.grid()
+    plt.legend()
+
+    # Plotting outputs
+    plt.subplot(4, 1, 4)
     plt.plot(ys, label='$\Delta f (t)$')
     plt.title('Outputs')
     plt.xlabel('Time Step')
@@ -370,85 +386,60 @@ def predict_mats(A:np.array, B:np.array, N:int):
 
 
 
-# def constraint_mats(F:np.array, G:np.array, Pu:np.array, qu:np.array, Px=None, qx=None, Pxf=None, qxf=None):
-#     """
-#     Returns the MPC constraints matrices for a system subject to constraints.
-
-#     The function computes the matrices Pc, qc, and Sc from:
-#     Pc * U(k) <= qc + Sc * x(k)
-
-#     Parameters:
-#         F, G : Prediction matrices
-#         Pu, qu : Input constraints
-#         Px, qx : State constraints (can be None if not applicable)
-#         Pxf, qxf : Terminal constraints (can be None if not applicable)
-
-#     Returns:
-#         Pc, qc, Sc : Matrices for constraints
-#     """
-
-#     # Input dimension
+# def constraint_mats(F, G, Pu, qu, Px, qx, Pxf, qxf):
+#     # input dimension
 #     m = Pu.shape[1]
 
-#     # State dimension
+#     # state dimension
 #     n = F.shape[1]
 
-#     # Horizon length
+#     # horizon length
 #     N = F.shape[0] // n
 
-#     # Number of input constraints
+#     # number of input constraints
 #     ncu = qu.size
 
-#     # Number of state constraints
-#     ncx = qx.size if qx is not None else 0
+#     # number of state constraints
+#     ncx = qx.size
 
-#     # Number of terminal constraints
-#     ncf = qxf.size if qxf is not None else 0
+#     # number of terminal constraints
+#     ncf = qxf.size
 
-#     # If state constraints exist, but terminal ones do not, then extend the
-#     # former to the latter
+#     # if state constraints exist, but terminal ones do not, then extend the former to the latter
 #     if ncf == 0 and ncx > 0:
 #         Pxf = Px
 #         qxf = qx
 #         ncf = ncx
 
-#     ## Input constraints
-
+#     # Input constraints
 #     # Build "tilde" (stacked) matrices for constraints over horizon
-#     Pu_tilde = kron(np.eye(N), Pu)
+#     Pu_tilde = np.kron(np.eye(N), Pu)
 #     qu_tilde = np.kron(np.ones((N, 1)), qu)
 #     Scu = np.zeros((ncu * N, n))
 
-#     ## State constraints
-
+#     # State constraints
 #     # Build "tilde" (stacked) matrices for constraints over horizon
-#     Px0_tilde = np.vstack([Px, np.zeros((ncx * (N - 1) + ncf, n))]) if ncx > 0 else np.zeros((ncf, n))
-    
+#     Px0_tilde = np.vstack([Px, np.zeros((ncx * (N - 1) + ncf, n))])
 #     if ncx > 0:
-#         Px_tilde = np.hstack([kron(np.eye(N - 1), Px), np.zeros((ncx * (N - 1), n))])
+#         Px_tilde = np.hstack([np.kron(np.eye(N - 1), Px), np.zeros((ncx * (N - 1), n))])
 #     else:
-#         Px_tilde = np.zeros((0, n * N))
-
-#     print(ncf)
-#     print(Pxf)
-
+#         Px_tilde = np.zeros((ncx, n * N))
 #     Pxf_tilde = np.hstack([np.zeros((ncf, n * (N - 1))), Pxf])
 #     Px_tilde = np.vstack([np.zeros((ncx, n * N)), Px_tilde, Pxf_tilde])
-#     qx_tilde = np.vstack([kron(np.ones((N, 1)), qx), qxf]) if ncx > 0 else qxf
+#     qx_tilde = np.vstack([np.kron(np.ones((N, 1)), qx), qxf])
 
-#     ## Final stack
+#     # Final stack
 #     if Px_tilde.size == 0:
 #         Pc = Pu_tilde
 #         qc = qu_tilde
 #         Sc = Scu
 #     else:
-#         # Eliminate x for final form
+#         # eliminate x for final form
 #         Pc = np.vstack([Pu_tilde, Px_tilde @ G])
 #         qc = np.vstack([qu_tilde, qx_tilde])
 #         Sc = np.vstack([Scu, -Px0_tilde - Px_tilde @ F])
 
 #     return Pc, qc, Sc
-
 
 def constraint_mats_2(F, G, Pu, qu, Px=None, qx=None, Pxf=None, qxf=None):
     # Set default values for Px, qx, Pxf, qxf if they are not provided
@@ -489,19 +480,16 @@ def constraint_mats_2(F, G, Pu, qu, Px=None, qx=None, Pxf=None, qxf=None):
     # State constraints: Build "tilde" (stacked) matrices for constraints over horizon
     
     
-    if Px.size > 0:
-        Px0_tilde = np.vstack([Px, np.zeros((ncx * (N - 1) + ncf, n))])
-        if ncx > 0:
-            Px_tilde = np.hstack([np.kron(np.eye(N - 1), Px), np.zeros((ncx * (N - 1), n))])
-        else:
-            Px_tilde = np.zeros((ncx, n * N))
-        Pxf_tilde = np.hstack([np.zeros((ncf, n * (N - 1))), Pxf])
-        Px_tilde = np.vstack([np.zeros((ncx, n * N)), Px_tilde, Pxf_tilde])
-        qx_tilde = np.hstack([np.kron(np.ones(N), qx), qxf])
+    # State constraints
+    # Build "tilde" (stacked) matrices for constraints over horizon
+    Px0_tilde = np.vstack([Px, np.zeros((ncx * (N - 1) + ncf, n))])
+    if ncx > 0:
+        Px_tilde = np.hstack([np.kron(np.eye(N - 1), Px), np.zeros((ncx * (N - 1), n))])
     else:
-        Px0_tilde = np.zeros((0, n))  # Empty matrix with correct dimensions
-        Px_tilde = np.zeros((0, n * N))  # Empty matrix with correct dimensions
-        qx_tilde = np.array([])  # Empty array
+        Px_tilde = np.zeros((ncx, n * N))
+    Pxf_tilde = np.hstack([np.zeros((ncf, n * (N - 1))), Pxf])
+    Px_tilde = np.vstack([np.zeros((ncx, n * N)), Px_tilde, Pxf_tilde])
+    qx_tilde = np.vstack([np.kron(np.ones((N, 1)), qx), qxf])
 
     # Final stack
     if Px_tilde.size == 0:
@@ -509,12 +497,15 @@ def constraint_mats_2(F, G, Pu, qu, Px=None, qx=None, Pxf=None, qxf=None):
         qc = qu_tilde
         Sc = Scu
     else:
-        # Eliminate x for the final form
+        # eliminate x for final form
         Pc = np.vstack([Pu_tilde, Px_tilde @ G])
         qc = np.vstack([qu_tilde, qx_tilde])
         Sc = np.vstack([Scu, -Px0_tilde - Px_tilde @ F])
 
     return Pc, qc, Sc
+
+
+    
 
 def cost_mats(F, G, Q, R, P):
     from scipy.linalg import block_diag
