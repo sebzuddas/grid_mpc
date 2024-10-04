@@ -247,7 +247,11 @@ qwe
 Including disturbance enhances the realism both of the model and the controller. Disturbances are modelled via state space through the addition of an $E$ matrix and a $\omega(t)$ vector. However, typically we can assume $E=B$.
 
 ```math
- x(t) = 
+ \dot x(t) = Ax(t)+Bu(t)+E\omega(t)
+ \\
+ \therefore
+ \\
+ \dot x(t) = Ax(t)+B(u(t) + \omega(t))
 
 ```
 
