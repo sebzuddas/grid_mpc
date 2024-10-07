@@ -15,8 +15,6 @@ def main():
 
     Ts = 0.1 # sampling time
 
-
-
     #### Defining the Model #####
 
     # Model params
@@ -370,61 +368,6 @@ def predict_mats(A:np.array, B:np.array, N:int):
             G[n * i:n * (i + 1), m * j:m * (j + 1)] = np.linalg.matrix_power(A, i - j) @ B
 
     return F, G
-
-# def constraint_mats(F, G, Pu, qu, Px, qx, Pxf, qxf):
-#     # input dimension
-#     m = Pu.shape[1]
-
-#     # state dimension
-#     n = F.shape[1]
-
-#     # horizon length
-#     N = F.shape[0] // n
-
-#     # number of input constraints
-#     ncu = qu.size
-
-#     # number of state constraints
-#     ncx = qx.size
-
-#     # number of terminal constraints
-#     ncf = qxf.size
-
-#     # if state constraints exist, but terminal ones do not, then extend the former to the latter
-#     if ncf == 0 and ncx > 0:
-#         Pxf = Px
-#         qxf = qx
-#         ncf = ncx
-
-#     # Input constraints
-#     # Build "tilde" (stacked) matrices for constraints over horizon
-#     Pu_tilde = np.kron(np.eye(N), Pu)
-#     qu_tilde = np.kron(np.ones((N, 1)), qu)
-#     Scu = np.zeros((ncu * N, n))
-
-#     # State constraints
-#     # Build "tilde" (stacked) matrices for constraints over horizon
-#     Px0_tilde = np.vstack([Px, np.zeros((ncx * (N - 1) + ncf, n))])
-#     if ncx > 0:
-#         Px_tilde = np.hstack([np.kron(np.eye(N - 1), Px), np.zeros((ncx * (N - 1), n))])
-#     else:
-#         Px_tilde = np.zeros((ncx, n * N))
-#     Pxf_tilde = np.hstack([np.zeros((ncf, n * (N - 1))), Pxf])
-#     Px_tilde = np.vstack([np.zeros((ncx, n * N)), Px_tilde, Pxf_tilde])
-#     qx_tilde = np.vstack([np.kron(np.ones((N, 1)), qx), qxf])
-
-#     # Final stack
-#     if Px_tilde.size == 0:
-#         Pc = Pu_tilde
-#         qc = qu_tilde
-#         Sc = Scu
-#     else:
-#         # eliminate x for final form
-#         Pc = np.vstack([Pu_tilde, Px_tilde @ G])
-#         qc = np.vstack([qu_tilde, qx_tilde])
-#         Sc = np.vstack([Scu, -Px0_tilde - Px_tilde @ F])
-
-#     return Pc, qc, Sc
 
 def constraint_mats_2(F, G, Pu, qu, Px=None, qx=None, Pxf=None, qxf=None):
     # Set default values for Px, qx, Pxf, qxf if they are not provided

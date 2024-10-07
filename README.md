@@ -1,6 +1,6 @@
 # Grid MPC
 
-For the full problem definition, please see: [Assignment](/docs/ACS6116%20assignment.pdf)
+For the full problem definition, please see: [Assignment](/docs/ACS6116%20assignment.pdf).
 
 The challenge is to design an MPC-based controller for maintaining the stability of an electricity grid that uses renewables for generation. 
 
@@ -11,7 +11,6 @@ The system block diagram is given as the following:
 The given state-space prediction model is:
 
 ```math
-
 \frac{d}{dt}
 \begin{pmatrix}
 \Delta \omega(t)\\
@@ -248,12 +247,19 @@ Including disturbance enhances the realism both of the model and the controller.
 
 ```math
  \dot x(t) = Ax(t)+Bu(t)+E\omega(t)
- \\
- \therefore
- \\
- \dot x(t) = Ax(t)+B(u(t) + \omega(t))
 
 ```
+```math
+\therefore
+```
+```math
+ \dot x(t) = Ax(t)+B(u(t) + \omega(t))
+```
+The disturbances have been modelled using Gaussian white noise, with $\mu = 0.1$ and $\sigma = 0.1$ as a starting point. Using the same matrix configuration as above, we attain the following result. In the result, a price is associated with the control action. This will help when assessing the realism and cost effectiveness of any given control schema. 
+
+![disturbance_included](docs/with_disturbance_1.png)
+
+Now that we have modelled disturbances, we begin with the implementation of disturbance rejection. 
 
 
 
